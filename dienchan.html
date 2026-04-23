@@ -227,9 +227,35 @@
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div>
                 <h3 class="text-lg font-bold text-slate-800">🧩 Bộ huyệt thường dùng</h3>
-                <p class="text-sm text-slate-500 mt-1">Dựa trên các hình bộ huyệt lưu trong thư mục <code>data/</code>.</p>
+                <p class="text-sm text-slate-500 mt-1">Dựa trên các hình bộ huyệt lưu trong thư mục <code>data/</code> hoặc từ Cloudinary.</p>
             </div>
-            <button onclick="renderSets()" class="ml-auto text-xs bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 px-3 py-2 rounded-full transition">🔄 Làm mới danh sách</button>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="toggleAddSetForm()" class="text-xs bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-full transition">➕ Thêm bộ huyệt mới</button>
+                <button onclick="exportCustomSets()" class="text-xs bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 px-3 py-2 rounded-full transition">📤 Export sets</button>
+                <button onclick="importCustomSets()" class="text-xs bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 px-3 py-2 rounded-full transition">📥 Import sets</button>
+                <button onclick="renderSets()" class="text-xs bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 px-3 py-2 rounded-full transition">🔄 Làm mới danh sách</button>
+            </div>
+        </div>
+        <div id="add-set-form" class="hidden bg-slate-50 border-2 border-dashed border-amber-200 rounded-xl p-5 mb-6 space-y-4">
+            <h4 class="font-bold text-slate-700">➕ Thêm bộ huyệt mới</h4>
+            <div class="grid grid-cols-1 gap-3">
+                <input type="text" id="new-set-title" placeholder="Tiêu đề bộ huyệt" class="p-3 border rounded-lg focus:border-amber-400 outline-none">
+                <input type="text" id="new-set-public-id" placeholder="Public ID Cloudinary (mặc định lấy title)" class="p-3 border rounded-lg focus:border-amber-400 outline-none">
+            </div>
+            <textarea id="new-set-description" rows="2" placeholder="Mô tả bộ huyệt" class="w-full p-3 border rounded-lg focus:border-amber-400 outline-none resize-none"></textarea>
+            <textarea id="new-set-note" rows="2" placeholder="Ghi chú cách dùng" class="w-full p-3 border rounded-lg focus:border-amber-400 outline-none resize-none"></textarea>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+                <label class="block">
+                    <span class="text-xs text-slate-500">Chọn ảnh bộ huyệt</span>
+                    <input type="file" id="new-set-image" accept=".jpg,.jpeg,.png,.webp,.gif" class="mt-2 w-full text-sm file:border file:border-slate-300 file:rounded-lg file:px-3 file:py-2 file:bg-white" />
+                </label>
+                <div class="flex gap-2 justify-end">
+                    <button onclick="toggleAddSetForm()" class="px-4 py-2 rounded-lg border text-slate-500 hover:bg-slate-100 text-sm">Hủy</button>
+                    <button onclick="saveNewSet()" class="px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 text-sm font-semibold">Lưu bộ huyệt</button>
+                </div>
+            </div>
+            <p id="new-set-error" class="text-sm text-red-600 hidden"></p>
+            <p id="new-set-status" class="text-sm text-slate-500"></p>
         </div>
         <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-white mb-5">
             <button type="button" onclick="viewDataImage('data/dinh-huyet-full-1.jpg')" class="w-full text-left">
@@ -575,6 +601,7 @@ window.addEventListener('scroll', () => {
         { file: 'tieu-viem-tieu-doc.png', title: 'Tiêu viêm – tiêu độc', description: 'Giảm viêm, giải độc cơ thể, hỗ trợ các triệu chứng viêm sưng, phù nề.', note: 'Dùng cho viêm sưng, dị ứng, mẩn đỏ, phù do độc tố.' },
         { file: 'Tuc-Nguc-Kho-Tho.png', title: 'Tức ngực – khó thở', description: 'Giúp thông khí ngực, giảm đau tức và hỗ trợ hô hấp cho người căng thẳng.', note: 'Thích hợp với tức ngực, khó thở, ho và cảm giác nghẹn ngực khi căng thẳng.' }
     ];
+    let dcEditingSetKey = null;
     let relativeDataFolderDetected = false;
 
     function tryDataImage(imgEl) {
@@ -2634,11 +2661,20 @@ window.addEventListener('scroll', () => {
         renderProtocols(protocols.length ? protocols : getAllProtocols());
     }
 
+    function getAllSetImages() {
+        const custom = JSON.parse(localStorage.getItem('dc_custom_sets') || '[]');
+        return [...setImages, ...custom];
+    }
+
     function getSetImageList() {
-        const existingBases = new Map(setImages.map(s => [s.file ? s.file.replace(/\.[^.]+$/, '').toLowerCase() : '', s]));
+        const allSets = getAllSetImages();
+        const existingBases = new Map(allSets.map(s => {
+            const base = (s.imageKey || (s.file ? s.file.replace(/\.[^.]+$/, '') : '')).toLowerCase();
+            return [base, s];
+        }));
         const generated = [];
-        const resolvedSets = setImages.map(set => {
-            const baseOriginal = set.file ? set.file.replace(/\.[^.]+$/, '') : '';
+        const resolvedSets = allSets.map(set => {
+            const baseOriginal = set.imageKey || (set.file ? set.file.replace(/\.[^.]+$/, '') : '');
             const baseKey = baseOriginal.toLowerCase();
             if (baseKey && folderSetImageCache.has(baseKey)) {
                 return { ...set, src: folderSetImageCache.get(baseKey) };
@@ -2669,18 +2705,30 @@ window.addEventListener('scroll', () => {
         const container = document.getElementById('set-image-list');
         const allSets = getSetImageList();
         container.innerHTML = allSets.map(set => {
-            const base = set.file ? set.file.replace(/\.[^.]+$/, '').toLowerCase() : '';
+            const base = (set.imageKey || (set.file ? set.file.replace(/\.[^.]+$/, '') : '')).toLowerCase();
             const src = set.src || (typeof DCcloudinary !== 'undefined' && base ? DCcloudinary.getImageUrlForKey(base) : '') || (set.file ? `data/${set.file}` : '');
             return `
             <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                <button onclick="viewDataImage('${src}')" class="w-full text-left">
-                    <img loading="lazy" src="${src}" alt="${set.title}" class="w-full h-44 object-cover">
-                    <div class="p-4">
-                        <h4 class="font-bold text-slate-800">${set.title}</h4>
-                        <p class="text-slate-500 text-xs mt-2">${set.description}</p>
-                        <p class="text-slate-400 text-[11px] mt-2 italic">${set.note}</p>
+                <div class="relative">
+                    <button onclick="viewDataImage('${src}')" class="w-full text-left">
+                        <img loading="lazy" src="${src}" alt="${set.title}" class="w-full h-44 object-cover">
+                    </button>
+                    ${set._custom ? `
+                    <div class="absolute top-3 right-3 flex gap-2">
+                        <button onclick="event.stopPropagation(); editCustomSet('${set.imageKey}');" class="text-[11px] bg-white/90 text-slate-800 px-2 py-1 rounded-full border border-slate-200 hover:bg-slate-100 transition">Sửa</button>
+                        <button onclick="event.stopPropagation(); if(confirm('Xác nhận xóa bộ huyệt này?')) deleteCustomSet('${set.imageKey}');" class="text-[11px] bg-red-100 text-red-700 px-2 py-1 rounded-full border border-red-200 hover:bg-red-200 transition">Xóa</button>
                     </div>
-                </button>
+                    ` : ''}
+                </div>
+                <div class="p-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <h4 class="font-bold text-slate-800">${set.title}</h4>
+                        ${set._custom ? '<span class="text-[11px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full">Tùy chỉnh</span>' : ''}
+                    </div>
+                    <p class="text-slate-500 text-xs mt-2">${set.description || ''}</p>
+                    <p class="text-slate-400 text-[11px] mt-2 italic">${set.note || ''}</p>
+                    ${set.imageKey ? `<p class="text-[11px] text-slate-400 mt-3">Public ID: ${set.imageKey}</p>` : ''}
+                </div>
             </div>
         `;
         }).join('');
@@ -2700,6 +2748,211 @@ window.addEventListener('scroll', () => {
         overlay.appendChild(imgEl);
         overlay.onclick = () => document.body.removeChild(overlay);
         document.body.appendChild(overlay);
+    }
+
+    function toggleAddSetForm() {
+        const form = document.getElementById('add-set-form');
+        if (!form) return;
+        const isHidden = form.classList.contains('hidden');
+        if (isHidden) {
+            resetSetForm();
+        } else {
+            resetSetForm();
+        }
+        form.classList.toggle('hidden', !isHidden);
+        if (!isHidden) {
+            document.getElementById('new-set-status').textContent = '';
+            document.getElementById('new-set-error').classList.add('hidden');
+        }
+    }
+
+    function slugify(text) {
+        return (text || '')
+            .toString()
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\-\s]+/g, '')
+            .replace(/\s+/g, '_');
+    }
+
+    function getCustomSetImages() {
+        return JSON.parse(localStorage.getItem('dc_custom_sets') || '[]');
+    }
+
+    function saveCustomSet(set) {
+        const custom = getCustomSetImages();
+        custom.push(set);
+        localStorage.setItem('dc_custom_sets', JSON.stringify(custom));
+    }
+
+    function updateCustomSet(set) {
+        const custom = getCustomSetImages();
+        const index = custom.findIndex(item => item.imageKey === set.imageKey);
+        if (index >= 0) {
+            custom[index] = set;
+            localStorage.setItem('dc_custom_sets', JSON.stringify(custom));
+        }
+    }
+
+    function deleteCustomSet(imageKey) {
+        const custom = getCustomSetImages().filter(item => item.imageKey !== imageKey);
+        localStorage.setItem('dc_custom_sets', JSON.stringify(custom));
+        renderSets();
+    }
+
+    function resetSetForm() {
+        document.getElementById('new-set-title').value = '';
+        document.getElementById('new-set-public-id').value = '';
+        document.getElementById('new-set-description').value = '';
+        document.getElementById('new-set-note').value = '';
+        document.getElementById('new-set-image').value = '';
+        document.getElementById('new-set-status').textContent = '';
+        document.getElementById('new-set-error').classList.add('hidden');
+        dcEditingSetKey = null;
+    }
+
+    async function saveNewSet() {
+        const title = document.getElementById('new-set-title')?.value.trim();
+        const description = document.getElementById('new-set-description')?.value.trim();
+        const note = document.getElementById('new-set-note')?.value.trim();
+        const fileInput = document.getElementById('new-set-image');
+        const errorEl = document.getElementById('new-set-error');
+        const statusEl = document.getElementById('new-set-status');
+        if (!title) {
+            errorEl.textContent = 'Vui lòng nhập tiêu đề bộ huyệt.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        const publicIdInput = document.getElementById('new-set-public-id')?.value.trim();
+        const publicId = publicIdInput ? slugify(publicIdInput) : slugify(title);
+        if (!dcEditingSetKey && (!fileInput || !fileInput.files || !fileInput.files[0])) {
+            errorEl.textContent = 'Vui lòng chọn ảnh bộ huyệt để upload lên Cloudinary.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        if (dcEditingSetKey && publicId !== dcEditingSetKey && (!fileInput || !fileInput.files || !fileInput.files[0])) {
+            errorEl.textContent = 'Đổi public_id yêu cầu chọn ảnh mới để upload lại.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        if (typeof DCcloudinary === 'undefined') {
+            errorEl.textContent = 'Cloudinary chưa được cấu hình. Không thể upload ảnh.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        errorEl.classList.add('hidden');
+        const file = fileInput?.files?.[0];
+        statusEl.textContent = dcEditingSetKey ? 'Đang cập nhật bộ huyệt...' : 'Đang upload ảnh lên Cloudinary...';
+        try {
+            let result = null;
+            if (file) {
+                result = await DCcloudinary.uploadFile(file, {
+                    folder: 'dienchan/data',
+                    public_id: publicId,
+                    tags: ['dienchan-set', publicId]
+                });
+                DCcloudinary.saveMetadata(publicId, {
+                    public_id: result.public_id,
+                    secure_url: result.secure_url,
+                    format: result.format,
+                    uploadedAt: result.created_at,
+                    originalName: file.name,
+                    size: file.size
+                });
+            }
+            const originalSet = dcEditingSetKey ? getCustomSetImages().find(item => item.imageKey === dcEditingSetKey) : null;
+            const setData = {
+                _custom: true,
+                title,
+                description,
+                note,
+                imageKey: publicId,
+                file: file ? file.name : (originalSet ? originalSet.file : undefined)
+            };
+            if (dcEditingSetKey) {
+                if (dcEditingSetKey !== publicId) {
+                    deleteCustomSet(dcEditingSetKey);
+                    saveCustomSet(setData);
+                } else {
+                    updateCustomSet(setData);
+                }
+                statusEl.textContent = `Đã cập nhật bộ huyệt: ${title}`;
+            } else {
+                saveCustomSet(setData);
+                statusEl.textContent = `Đã lưu bộ huyệt mới và upload ảnh Cloudinary: ${title}`;
+            }
+            toggleAddSetForm();
+            resetSetForm();
+            renderSets();
+        } catch (err) {
+            console.error('Upload bộ huyệt Cloudinary thất bại:', err);
+            errorEl.textContent = 'Upload ảnh thất bại. Kiểm tra cấu hình Cloudinary hoặc thử lại.';
+            errorEl.classList.remove('hidden');
+            statusEl.textContent = '';
+        }
+    }
+
+    function editCustomSet(imageKey) {
+        const custom = getCustomSetImages();
+        const set = custom.find(item => item.imageKey === imageKey);
+        if (!set) return;
+        dcEditingSetKey = set.imageKey;
+        document.getElementById('new-set-title').value = set.title || '';
+        document.getElementById('new-set-public-id').value = set.imageKey || '';
+        document.getElementById('new-set-description').value = set.description || '';
+        document.getElementById('new-set-note').value = set.note || '';
+        document.getElementById('new-set-status').textContent = 'Chỉnh sửa bộ huyệt tùy chỉnh. Giữ nguyên ảnh nếu không đổi file.';
+        document.getElementById('new-set-error').classList.add('hidden');
+        const form = document.getElementById('add-set-form');
+        if (form) form.classList.remove('hidden');
+    }
+
+    function exportCustomSets() {
+        const custom = getCustomSetImages();
+        const blob = new Blob([JSON.stringify(custom, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'dc_custom_sets.json';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    async function importCustomSets() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = e => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const data = JSON.parse(reader.result);
+                    if (!Array.isArray(data)) throw new Error('File import phải chứa một mảng.');
+                    const current = getCustomSetImages();
+                    const existingKeys = new Set(current.map(item => item.imageKey));
+                    const merged = [...current];
+                    data.forEach(item => {
+                        if (!item.imageKey || !item.title) return;
+                        if (!existingKeys.has(item.imageKey)) {
+                            item._custom = true;
+                            merged.push(item);
+                            existingKeys.add(item.imageKey);
+                        }
+                    });
+                    localStorage.setItem('dc_custom_sets', JSON.stringify(merged));
+                    renderSets();
+                    alert(`Import xong: ${merged.length - current.length} bộ huyệt mới.`);
+                } catch (err) {
+                    alert('Import bộ huyệt thất bại: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
     }
 
     function lookupProtocol(i) {
