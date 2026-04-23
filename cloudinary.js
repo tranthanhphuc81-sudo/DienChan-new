@@ -97,13 +97,16 @@
 
     function getImageUrlForKey(key, options = {}) {
         const meta = getMetadata(key);
-        if (!meta) return '';
         const defaultOptions = { format: 'auto', quality: 'auto' };
         const urlOptions = { ...defaultOptions, ...options };
-        if (meta.public_id) {
+        if (meta && meta.public_id) {
             return makeUrl(meta.public_id, urlOptions);
         }
-        return meta.secure_url || '';
+        if (meta && meta.secure_url) {
+            return meta.secure_url;
+        }
+        // Fallback: nếu ảnh đã upload lên Cloudinary với public_id giống id huyệt
+        return makeUrl(`dienchan/data/${key}`, urlOptions);
     }
 
     global.DCcloudinary = {
