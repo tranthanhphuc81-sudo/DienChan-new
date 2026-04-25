@@ -136,9 +136,9 @@
             </div>
         </div>
 
-        <input type="text" id="search" placeholder="Nhập số huyệt (127, 19...) hoặc triệu chứng (đau đầu, đau bao tử)..." 
+        <input type="text" id="search" autocomplete="off" placeholder="Nhập số huyệt (127, 19...) hoặc triệu chứng (đau đầu, đau bao tử)..." 
                class="w-full p-4 border-2 border-slate-200 rounded-xl mb-3 focus:border-red-500 outline-none shadow-sm"
-               onkeyup="searchHuyet()">
+               oninput="searchHuyet()">
 
         <!-- Thanh kết nối thư mục ảnh -->
         <div id="folder-bar" class="mb-3 flex items-center gap-2">
@@ -3651,7 +3651,7 @@ window.addEventListener('scroll', () => {
         await refreshFolderImageCache();
         await checkRelativeDataFolder();
         checkFolderStatus();
-        renderHuyet(getAllHuyet());
+        searchHuyet();
         loadPatients();
         buildProtoJumpNav();
         renderProtocols(getAllProtocols());
