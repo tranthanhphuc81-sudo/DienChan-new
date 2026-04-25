@@ -156,12 +156,16 @@
         </div>
 
         <!-- Nút mở form thêm huyệt -->
-        <div class="flex justify-between items-center mb-4">
-            <p id="huyet-count" class="text-xs text-slate-400"></p>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div>
+                <p id="huyet-count" class="text-xs text-slate-400"></p>
+                <button id="huyet-missing-check-btn" onclick="checkMissingHuyetImages()" class="mt-2 text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-2 rounded-full transition">🔎 Kiểm tra huyệt chưa có hình minh hoạ</button>
+            </div>
             <button onclick="toggleAddForm()" class="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-sm px-4 py-2 rounded-lg transition font-semibold shadow">
                 <span id="add-form-icon">➕</span> Thêm huyệt mới
             </button>
         </div>
+        <div id="huyet-missing-storage-note" class="hidden text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4"></div>
 
         <!-- Form thêm huyệt mới -->
         <div id="add-huyet-form" class="hidden bg-slate-50 border-2 border-dashed border-red-200 rounded-xl p-5 mb-6 space-y-3">
@@ -192,7 +196,7 @@
                class="w-full p-4 border-2 border-slate-200 rounded-xl focus:border-red-500 outline-none shadow-sm"
                oninput="searchProtocols()">
         <div class="flex flex-wrap items-center gap-3 mt-3">
-            <button onclick="suggestProtocolsFromSymptoms()" class="bg-amber-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-amber-700 transition font-semibold">🔎 Gợi ý phác đồ theo triệu chứng</button>
+            <button onclick="suggestProtocolsFromProtocolSearch()" class="bg-amber-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-amber-700 transition font-semibold">🔎 Gợi ý phác đồ theo triệu chứng</button>
             <span id="protocol-suggestion-msg" class="text-sm text-slate-500"></span>
         </div>
         <div id="protocol-protocol-suggestions" class="hidden bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4">
@@ -217,6 +221,7 @@
                 <input type="text" id="new-proto-color" placeholder="Màu (VD: green, blue, red, indigo)" class="p-3 border rounded-lg">
             </div>
             <input type="text" id="new-proto-points" placeholder="Các huyệt cách nhau bằng dấu phẩy (VD: 26, 103, 0)" class="w-full p-3 border rounded-lg">
+            <input type="text" id="new-proto-keywords" placeholder="Từ khóa / tags (VD: thận, đau lưng, khớp gối)" class="w-full p-3 border rounded-lg">
             <textarea id="new-proto-note" rows="3" placeholder="Cách thực hiện / ghi chú..." class="w-full p-3 border rounded-lg resize-none"></textarea>
             <div class="flex gap-3">
                 <button onclick="saveNewProtocol()" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold p-3 rounded-lg">💾 Lưu phác đồ</button>
@@ -274,7 +279,21 @@
                 </div>
             </button>
         </div>
-        <div id="set-image-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <div class="space-y-4">
+            <div class="grid gap-3 md:grid-cols-[1fr_auto] items-end">
+                <input type="text" id="set-search" placeholder="Tìm bộ huyệt (Ví dụ: giảm đau, tiêu hóa, mờ mắt...)" class="w-full p-4 border-2 border-slate-200 rounded-xl focus:border-amber-500 outline-none shadow-sm" oninput="renderSets()">
+                <button onclick="renderSets()" class="text-xs bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 px-3 py-2 rounded-full transition">🔄 Làm mới danh sách</button>
+            </div>
+            <p id="set-count" class="text-xs text-slate-400"></p>
+            <div class="grid gap-4 lg:grid-cols-[1fr_2fr]">
+                <div>
+                    <div id="set-list-container" class="w-full h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white"></div>
+                </div>
+                <div id="set-detail-panel" class="hidden bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <div id="set-detail-content"></div>
+                </div>
+            </div>
+        </div>
         <div class="bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-sm mt-4">
             <h4 class="font-bold text-slate-800 text-lg">💡 Ý nghĩa & lưu ý của các bộ huyệt</h4>
             <p class="text-sm text-slate-500 mt-3">Các bộ huyệt Diện Chẩn là tổ hợp huyệt được phối hợp để xử lý một nhóm triệu chứng hoặc kích hoạt chức năng tạng phủ liên quan. Mỗi bộ huyệt thường gồm huyệt chủ và huyệt phụ, giúp cân bằng âm dương, điều hòa khí huyết và tăng hiệu quả điều trị.</p>
@@ -455,11 +474,17 @@
                     <input type="password" id="dc-user-password" placeholder="Mật khẩu" autocomplete="new-password" class="w-full p-3 border rounded-lg">
                 </div>
                 <div class="grid gap-3">
-                    <button onclick="initEncryptedUser()" class="w-full bg-slate-800 text-white p-3 rounded-lg hover:bg-slate-900 font-semibold">MỞ KHÓA</button>
+                    <button id="unlock-button" onclick="initEncryptedUser()" class="w-full bg-slate-800 text-white p-3 rounded-lg hover:bg-slate-900 font-semibold">
+                        MỞ KHÓA
+                        <span id="dc-unlock-badge" class="hidden ml-2 inline-flex items-center rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-semibold text-white">Đã mở khóa</span>
+                    </button>
                     <button onclick="createEncryptedUser()" class="w-full bg-emerald-600 text-white p-3 rounded-lg hover:bg-emerald-700 font-semibold">TẠO USER MỚI</button>
+                    <button onclick="clearEncryptedUsers()" class="w-full bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 font-semibold">XÓA TẤT CẢ USER</button>
                 </div>
             </div>
             <p id="dc-user-status" class="text-sm mt-3 text-slate-500">Chưa mở khóa. Dữ liệu hồ sơ sẽ được mã hóa khi user mở khóa thành công.</p>
+            <p id="dc-unlock-state" class="text-sm mt-1 text-slate-500">Trạng thái khóa: chưa xác định</p>
+            <p id="dc-debug-status" class="text-xs mt-1 text-slate-400">Debug: waiting...</p>
         </div>
 
         <!-- Form thêm hồ sơ -->
@@ -468,7 +493,10 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input type="text" id="p-name" placeholder="Tên bệnh nhân" class="p-3 border rounded-lg">
                 <input type="text" id="p-disease" placeholder="Bệnh trạng / Triệu chứng" class="p-3 border rounded-lg">
-                <input type="text" id="p-protocol" placeholder="Phác đồ (ví dụ: 103, 106, 300, 0)" class="p-3 border rounded-lg md:col-span-2">
+                <div class="md:col-span-2 space-y-2">
+                    <div id="p-protocol" class="w-full p-3 border rounded-lg min-h-[46px] bg-white text-slate-700 overflow-y-auto whitespace-pre-wrap" role="textbox" aria-multiline="true"></div>
+                    <input type="hidden" id="p-protocol-hidden">
+                </div>
                 <button onclick="suggestProtocolsFromSymptoms()" class="bg-amber-600 text-white p-3 rounded-lg hover:bg-amber-700 font-bold">🔎 Gợi ý phác đồ</button>
                 <button onclick="savePatient()" class="bg-red-500 text-white p-3 rounded-lg hover:bg-red-600 font-bold">LƯU HỒ SƠ</button>
             </div>
@@ -483,8 +511,9 @@
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
             <h3 class="text-base font-bold text-amber-800 mb-3">💾 Backup &amp; Khôi phục dữ liệu</h3>
             <p class="text-xs text-amber-700 mb-4">Xuất toàn bộ dữ liệu bạn đã thêm (huyệt tùy chỉnh, hình ảnh huyệt, hồ sơ bệnh nhân) ra file <code>.json</code> để lưu trữ hoặc chuyển sang thiết bị khác.</p>
+            <p class="text-xs text-red-600 font-semibold mb-4">Lưu ý: nếu chưa mở khóa user, bạn không thể xuất backup plain. Hãy mở khóa để xuất backup mã hóa an toàn.</p>
             <div class="flex flex-wrap gap-3">
-                <button onclick="exportBackup()" class="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition">
+                <button id="export-backup-button" onclick="exportBackup()" disabled class="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition opacity-50 cursor-not-allowed">
                     ⬇️ Xuất Backup (.json)
                 </button>
                 <label class="flex items-center gap-2 bg-slate-600 hover:bg-slate-700 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition cursor-pointer">
@@ -495,6 +524,7 @@
             <p id="backup-msg" class="text-sm mt-3 hidden"></p>
         </div>
 
+        <div id="patient-storage-status" class="text-sm text-slate-500 mb-4"></div>
         <div id="patient-records" class="space-y-4">
         </div>
     </div>
@@ -534,13 +564,13 @@
 </div>
 
 <!-- Modal chỉnh sửa hồ sơ -->
-<div id="edit-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div class="flex justify-between items-center px-6 py-4 border-b">
+<div id="edit-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <div class="flex justify-between items-center px-6 py-4 border-b shrink-0">
             <h3 class="font-bold text-lg text-slate-700">✏️ Chỉnh sửa hồ sơ</h3>
             <button onclick="closeEditModal()" class="text-slate-400 hover:text-red-500 text-2xl leading-none">&times;</button>
         </div>
-        <div class="p-6 space-y-4">
+        <div class="p-6 space-y-4 overflow-y-auto min-h-0 flex-1">
             <input type="hidden" id="edit-index">
             <div>
                 <label class="text-xs font-semibold text-slate-500 mb-1 block">Tên bệnh nhân</label>
@@ -554,12 +584,21 @@
                 <label class="text-xs font-semibold text-slate-500 mb-1 block">Phác đồ</label>
                 <input type="text" id="edit-protocol" class="w-full p-3 border rounded-lg focus:border-red-400 outline-none">
             </div>
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="button" onclick="suggestEditProtocols()" class="bg-amber-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-amber-700 transition font-semibold">🔎 Gợi ý phác đồ</button>
+                <span id="edit-suggestion-msg" class="text-sm text-slate-500"></span>
+            </div>
+            <div id="edit-protocol-suggestions" class="hidden bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 max-h-[60vh] overflow-y-auto">
+                <p id="edit-suggestion-title" class="text-sm font-semibold text-slate-700 mb-3">Gợi ý phác đồ và bộ huyệt</p>
+                <div id="edit-protocol-suggestion-list" class="space-y-3"></div>
+                <div id="edit-set-suggestion-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4"></div>
+            </div>
             <div>
                 <label class="text-xs font-semibold text-slate-500 mb-1 block">Ghi chú thêm</label>
                 <textarea id="edit-note" rows="3" class="w-full p-3 border rounded-lg focus:border-red-400 outline-none resize-none" placeholder="Ghi chú buổi điều trị, tiến triển..."></textarea>
             </div>
         </div>
-        <div class="flex gap-3 px-6 pb-6">
+        <div class="flex gap-3 px-6 pb-6 bg-white border-t shrink-0">
             <button onclick="updateRecord()" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold p-3 rounded-lg">💾 Lưu thay đổi</button>
             <button onclick="closeEditModal()" class="px-5 bg-slate-200 hover:bg-slate-300 rounded-lg font-semibold">Hủy</button>
         </div>
@@ -2456,21 +2495,34 @@ window.addEventListener('scroll', () => {
             .filter(Boolean);
     }
 
-    function getProtocolMatchScore(protocol, tokens) {
-        const hay = `${protocol.name} ${protocol.note}`.toLowerCase();
+    function getProtocolMatchScore(protocol, tokens, query) {
+        const hayName = protocol.name.toLowerCase();
+        const hayNote = protocol.note.toLowerCase();
+        const phrase = (query || '').toLowerCase().trim();
+        const isNumericSearch = tokens.length === 1 && /^\d+$/.test(tokens[0]);
+
+        if (phrase && (hayName.includes(phrase) || hayNote.includes(phrase))) {
+            return 100 + tokens.length * 5;
+        }
+        if (tokens.length > 1 && !tokens.every(token => hayName.includes(token) || hayNote.includes(token) || protocol.points.some(pt => pt === token))) {
+            return 0;
+        }
         return tokens.reduce((score, token) => {
-            if (hay.includes(token)) return score + 10;
-            if (protocol.points.some(pt => pt === token)) return score + 5;
-            return score;
+            let tokenScore = 0;
+            if (hayName.includes(token)) tokenScore += 20;
+            if (hayNote.includes(token)) tokenScore += 5;
+            if (protocol.points.some(pt => pt === token)) tokenScore += 10;
+            return score + tokenScore;
         }, 0);
     }
 
     function getProtocolMatchesForText(text) {
         const tokens = normalizeSearchTokens(text);
         if (!tokens.length) return [];
+        const isNumericSearch = tokens.length === 1 && /^\d+$/.test(tokens[0]);
         return getAllProtocols()
-            .map(p => ({ protocol: p, score: getProtocolMatchScore(p, tokens) }))
-            .filter(item => item.score > 0)
+            .map(p => ({ protocol: p, score: getProtocolMatchScore(p, tokens, text) }))
+            .filter(item => item.score > (isNumericSearch ? 0 : 15))
             .sort((a, b) => b.score - a.score)
             .map(item => item.protocol);
     }
@@ -2534,11 +2586,15 @@ window.addEventListener('scroll', () => {
         if (!name) { errEl.textContent = 'Vui lòng nhập tên phác đồ.'; errEl.classList.remove('hidden'); return; }
         if (!pts)  { errEl.textContent = 'Vui lòng nhập ít nhất 1 huyệt.'; errEl.classList.remove('hidden'); return; }
         errEl.classList.add('hidden');
-        const points = pts.split(',').map(p => p.trim()).filter(Boolean);
+        const points = pts.split(/[\s,]+/).map(p => p.trim()).filter(Boolean);
+        const keywords = document.getElementById('new-proto-keywords').value
+            .split(/[\s,]+/)
+            .map(k => k.toLowerCase().trim())
+            .filter(Boolean);
         const custom = JSON.parse(localStorage.getItem('dc_custom_protocols') || '[]');
-        custom.push({ name, icon, color, points, note, _custom: true });
+        custom.push({ name, icon, color, points, note, keywords, _custom: true });
         localStorage.setItem('dc_custom_protocols', JSON.stringify(custom));
-        ['new-proto-name','new-proto-icon','new-proto-color','new-proto-points','new-proto-note'].forEach(id => document.getElementById(id).value = '');
+        ['new-proto-name','new-proto-icon','new-proto-color','new-proto-points','new-proto-keywords','new-proto-note'].forEach(id => document.getElementById(id).value = '');
         toggleAddProtoForm();
         renderProtocols(getAllProtocols());
     }
@@ -2569,6 +2625,11 @@ window.addEventListener('scroll', () => {
                     <span class="text-2xl">${p.icon}</span>
                     <div class="flex-1">
                         <h4 class="font-bold text-slate-800">${p.name}${p._custom ? ' <span class=\\"text-xs font-normal bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full\\">Tùy chỉnh</span>' : ''}</h4>
+                        <p class="text-xs text-slate-500 mt-1">${p.points.map(pt => {
+                            const h = database.find(d => d.id === pt);
+                            return h ? `#${pt} ${h.pos}` : `#${pt}`;
+                        }).join(', ')}</p>
+                        ${p.keywords && p.keywords.length ? `<div class="text-xs text-slate-500 mt-2">${p.keywords.join(', ')}</div>` : ''}
                         <div class="flex flex-wrap gap-1 mt-1">
                             ${p.points.map(pt => `<span class="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">#${pt}</span>`).join('')}
                         </div>
@@ -2616,33 +2677,106 @@ window.addEventListener('scroll', () => {
     const selectedSuggestedProtocols = new Set();
 
     function parseProtocolInputNames() {
-        const input = document.getElementById('p-protocol');
-        if (!input) return [];
-        return input.value
+        const hidden = document.getElementById('p-protocol-hidden');
+        if (!hidden) return [];
+        return hidden.value
             .split(/[,;\|]+/)
             .map(v => v.trim())
             .filter(Boolean);
     }
 
+    function getProtocolDisplayText(name) {
+        const protocol = getAllProtocols().find(p => p.name === name);
+        if (!protocol) return name;
+        return `${protocol.name} (${protocol.points.join(', ')})`;
+    }
+
     function setProtocolInputNames(names) {
-        const input = document.getElementById('p-protocol');
-        if (!input) return;
-        input.value = names.join(' | ');
+        const hidden = document.getElementById('p-protocol-hidden');
+        const box = document.getElementById('p-protocol');
+        if (!hidden || !box) return;
+        hidden.value = names.join(' | ');
+        if (!names.length) {
+            box.innerHTML = '<span class="text-slate-400">Phác đồ sẽ hiển thị ở đây sau khi chọn.</span>';
+            return;
+        }
+        box.innerHTML = names.map(name => {
+            const protocol = getAllProtocols().find(p => p.name === name);
+            const label = protocol ? `${protocol.name} (${protocol.points.join(', ')})` : name;
+            return `<button type="button" onclick="openSuggestedProtocol('${encodeURIComponent(name)}')" class="text-xs bg-amber-100 hover:bg-amber-200 border border-amber-200 text-amber-900 px-3 py-1 rounded-full transition underline decoration-amber-400 mr-2 mb-2 inline-flex items-center">${label}</button>`;
+        }).join('');
     }
 
     function toggleSuggestedProtocol(encodedName) {
         const name = decodeURIComponent(encodedName);
-        const current = new Set(parseProtocolInputNames());
-        if (current.has(name)) {
-            current.delete(name);
+        if (selectedSuggestedProtocols.has(name)) {
             selectedSuggestedProtocols.delete(name);
         } else {
-            current.add(name);
             selectedSuggestedProtocols.add(name);
         }
-        setProtocolInputNames([...current]);
+        setProtocolInputNames([...selectedSuggestedProtocols]);
         renderProtocolSuggestions('patient', getProtocolMatchesForText(document.getElementById('p-disease')?.value.trim() || ''), getSetMatchesForText(document.getElementById('p-disease')?.value.trim() || ''), document.getElementById('p-disease')?.value.trim() ? `Gợi ý từ: "${document.getElementById('p-disease')?.value.trim()}"` : undefined);
         renderProtocolSuggestions('protocol', getProtocolMatchesForText(document.getElementById('protocol-search')?.value.trim() || ''), getSetMatchesForText(document.getElementById('protocol-search')?.value.trim() || ''), document.getElementById('protocol-search')?.value.trim() ? `Gợi ý từ: "${document.getElementById('protocol-search')?.value.trim()}"` : undefined);
+    }
+
+    function escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function renderPatientProtocolLinks(protocolString) {
+        if (!protocolString) {
+            return '<em class="text-slate-300">chưa ghi</em>';
+        }
+        const names = protocolString.split('|').map(v => v.trim()).filter(Boolean);
+        if (!names.length) {
+            return '<em class="text-slate-300">chưa ghi</em>';
+        }
+        return names.map(name => {
+            return `<button type="button" onclick="openSuggestedProtocol('${encodeURIComponent(name)}')" class="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1.5 mr-2 mb-2 transition hover:bg-slate-200 hover:text-slate-900">${escapeHtml(name)}</button>`;
+        }).join('');
+    }
+
+    function formatProtocolPointNames(points) {
+        return points.map(pt => {
+            const h = database.find(d => d.id === pt);
+            return h ? `#${pt} ${h.pos}` : `#${pt}`;
+        }).join(', ');
+    }
+
+    function openSuggestedProtocol(protocolName) {
+        const name = decodeURIComponent(protocolName);
+        const editModal = document.getElementById('edit-modal');
+        const editInput = document.getElementById('edit-protocol');
+        if (editModal && !editModal.classList.contains('hidden') && editInput) {
+            const existing = editInput.value.trim();
+            const currentNames = existing ? existing.split(/\s*\|\s*/).map(v => v.trim()).filter(Boolean) : [];
+            if (!currentNames.includes(name)) {
+                currentNames.push(name);
+            }
+            editInput.value = currentNames.join(' | ');
+            renderProtocolSuggestions('edit', getProtocolMatchesForText(name), getSetMatchesForText(name), `Gợi ý từ: "${name}"`);
+            return;
+        }
+
+        const searchInput = document.getElementById('protocol-search');
+        if (searchInput) searchInput.value = name;
+        showTab('protocols');
+        searchProtocols();
+        setTimeout(() => {
+            const queryName = name;
+            const item = Array.from(document.querySelectorAll('[data-protocol-name]'))
+                .find(el => el.getAttribute('data-protocol-name') === queryName);
+            if (item) {
+                item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const btn = item.querySelector('button[onclick^="toggleProtocol"]');
+                if (btn) btn.focus();
+            }
+        }, 100);
     }
 
     function renderProtocolSuggestions(containerPrefix, protocols, sets, source) {
@@ -2658,14 +2792,18 @@ window.addEventListener('scroll', () => {
         suggestionsBox.classList.remove('hidden');
         protocolList.innerHTML = protocols.length ? protocols.map(p => {
             const isSelected = selectedSuggestedProtocols.has(p.name);
+            const isEdit = containerPrefix === 'edit';
             return `
-            <div class="border border-slate-200 rounded-xl p-4 bg-white">
-                <div class="flex items-center justify-between gap-3 mb-2">
-                    <div>
-                        <div class="font-semibold text-slate-800">${p.name}</div>
-                        <div class="text-xs text-slate-500 mt-1">${p.points.join(', ')}</div>
+            <div class="border border-slate-200 rounded-xl p-4 bg-amber-50" data-protocol-name="${p.name.replace(/"/g,'&quot;')}">
+                <div class="flex flex-col gap-3 mb-2">
+                    <div class="flex items-start justify-between gap-3">
+                        <button type="button" onclick="openSuggestedProtocol('${encodeURIComponent(p.name)}')" class="text-left font-semibold text-amber-900 hover:text-amber-800 text-base leading-tight underline decoration-amber-400 decoration-2">
+                            ${p.name}
+                        </button>
+                        ${isEdit ? `<button type="button" onclick="event.stopPropagation(); openSuggestedProtocol('${encodeURIComponent(p.name)}')" class="text-xs bg-emerald-500 text-white hover:bg-emerald-600 px-3 py-1.5 rounded-lg transition">Chọn</button>` : `<button type="button" onclick="event.stopPropagation(); toggleSuggestedProtocol('${encodeURIComponent(p.name)}')" class="text-xs ${isSelected ? 'bg-slate-300 text-slate-700 hover:bg-slate-400' : 'bg-blue-500 text-white hover:bg-blue-600'} px-3 py-1.5 rounded-lg transition">${isSelected ? 'Bỏ' : 'Thêm'}</button>`}
                     </div>
-                    <button onclick="event.stopPropagation(); toggleSuggestedProtocol('${encodeURIComponent(p.name)}')" class="text-xs ${isSelected ? 'bg-slate-300 text-slate-700 hover:bg-slate-400' : 'bg-blue-500 text-white hover:bg-blue-600'} px-3 py-1.5 rounded-lg transition">${isSelected ? 'Bỏ' : 'Thêm'}</button>
+                    <div class="text-xs text-slate-600">${p.points.join(', ')}</div>
+                    <div class="text-xs text-slate-700 mt-1"><strong>Huyệt liên quan:</strong> ${formatProtocolPointNames(p.points)}</div>
                 </div>
                 <p class="text-sm text-slate-500">${p.note}</p>
             </div>
@@ -2679,6 +2817,20 @@ window.addEventListener('scroll', () => {
         renderProtocolSuggestions('protocol', protocols, sets, source);
     }
 
+    function suggestEditProtocols() {
+        const query = document.getElementById('edit-disease')?.value.trim() || document.getElementById('edit-protocol')?.value.trim();
+        if (!query) {
+            const msg = document.getElementById('edit-suggestion-msg');
+            if (msg) msg.textContent = 'Vui lòng nhập triệu chứng hoặc tên phác đồ để gợi ý.';
+            return;
+        }
+        const protocols = getProtocolMatchesForText(query);
+        const sets = getSetMatchesForText(query);
+        renderProtocolSuggestions('edit', protocols, sets, `Gợi ý từ: "${query}"`);
+        const msg = document.getElementById('edit-suggestion-msg');
+        if (msg) msg.textContent = protocols.length ? `Đã tìm thấy ${protocols.length} phác đồ phù hợp.` : 'Không tìm thấy phác đồ phù hợp.';
+    }
+
     function applySuggestedProtocol(encodedName) {
         const name = decodeURIComponent(encodedName);
         const protocol = getAllProtocols().find(p => p.name === name);
@@ -2688,22 +2840,60 @@ window.addEventListener('scroll', () => {
         updateProtocolSuggestionMessage(`Đã áp dụng phác đồ: ${protocol.name}`);
     }
 
-    function suggestProtocolsFromSymptoms() {
-        const disease = document.getElementById('p-disease')?.value.trim();
-        const query = disease || document.getElementById('protocol-search')?.value.trim();
+    function suggestProtocolsFromProtocolSearch() {
+        const query = document.getElementById('protocol-search')?.value.trim();
         if (!query) {
-            updateProtocolSuggestionMessage('Vui lòng nhập triệu chứng hoặc bệnh trạng để gợi ý phác đồ.', true);
+            updateProtocolSuggestionMessage('Vui lòng nhập triệu chứng để gợi ý phác đồ.', true);
             return;
         }
         const protocols = getProtocolMatchesForText(query);
         const sets = getSetMatchesForText(query);
-        renderPatientProtocolSuggestions(protocols, sets, `Gợi ý từ: "${query}"`);
+        renderProtocols(protocols.length ? protocols : []);
+        renderProtocolSuggestions('protocol', protocols, sets, `Gợi ý từ: "${query}"`);
+        if (protocols.length) {
+            updateProtocolSuggestionMessage(`Đã tìm thấy ${protocols.length} phác đồ phù hợp.`);
+        } else {
+            updateProtocolSuggestionMessage('Không tìm thấy phác đồ phù hợp.', true);
+        }
+    }
+
+    function suggestProtocolsFromSymptoms() {
+        const disease = document.getElementById('p-disease')?.value.trim();
+        if (!disease) {
+            updateProtocolSuggestionMessage('Vui lòng nhập triệu chứng hoặc bệnh trạng để gợi ý phác đồ.', true);
+            return;
+        }
+        const protocols = getProtocolMatchesForText(disease);
+        const sets = getSetMatchesForText(disease);
+        renderPatientProtocolSuggestions(protocols, sets, `Gợi ý từ: "${disease}"`);
         if (protocols.length) {
             updateProtocolSuggestionMessage(`Đã tìm thấy ${protocols.length} phác đồ phù hợp.`);
         } else {
             updateProtocolSuggestionMessage('Không tìm thấy phác đồ phù hợp.', true);
         }
         renderProtocols(protocols.length ? protocols : getAllProtocols());
+    }
+
+    function getSetKey(set) {
+        if (!set) return '';
+        if (set.imageKey) return set.imageKey.toLowerCase();
+        if (set.file) return set.file.replace(/\.[^.]+$/, '').toLowerCase();
+        return (set.title || '').toLowerCase().replace(/\s+/g, '_');
+    }
+
+    function getSetSrc(set) {
+        if (!set) return '';
+        const baseOriginal = set.imageKey || (set.file ? set.file.replace(/\.[^.]+$/, '') : '');
+        const baseKey = baseOriginal.toLowerCase();
+        if (baseKey && folderSetImageCache.has(baseKey)) {
+            return folderSetImageCache.get(baseKey);
+        }
+        if (baseOriginal && typeof DCcloudinary !== 'undefined') {
+            const cloudSrc = DCcloudinary.getImageUrlForKey(baseOriginal);
+            if (cloudSrc) return cloudSrc;
+        }
+        if (set.file) return `data/${set.file}`;
+        return '';
     }
 
     function getAllSetImages() {
@@ -2713,26 +2903,16 @@ window.addEventListener('scroll', () => {
 
     function getSetImageList() {
         const allSets = getAllSetImages();
-        const existingBases = new Map(allSets.map(s => {
-            const base = (s.imageKey || (s.file ? s.file.replace(/\.[^.]+$/, '') : '')).toLowerCase();
-            return [base, s];
-        }));
-        const generated = [];
+        const existingBases = new Map(allSets.map(s => [getSetKey(s), s]));
         const resolvedSets = allSets.map(set => {
             const baseOriginal = set.imageKey || (set.file ? set.file.replace(/\.[^.]+$/, '') : '');
             const baseKey = baseOriginal.toLowerCase();
             if (baseKey && folderSetImageCache.has(baseKey)) {
                 return { ...set, src: folderSetImageCache.get(baseKey) };
             }
-            if (baseOriginal && typeof DCcloudinary !== 'undefined') {
-                const cloudSrc = DCcloudinary.getImageUrlForKey(baseOriginal);
-                if (cloudSrc) {
-                    return { ...set, src: cloudSrc };
-                }
-            }
             return set;
         });
-
+        const generated = [];
         for (const [base, url] of folderSetImageCache.entries()) {
             if (existingBases.has(base)) continue;
             generated.push({
@@ -2746,37 +2926,132 @@ window.addEventListener('scroll', () => {
         return [...resolvedSets, ...generated];
     }
 
-    function renderSets() {
-        const container = document.getElementById('set-image-list');
+    function showSetDetail(key) {
         const allSets = getSetImageList();
-        container.innerHTML = allSets.map(set => {
-            const base = (set.imageKey || (set.file ? set.file.replace(/\.[^.]+$/, '') : '')).toLowerCase();
-            const src = set.src || (typeof DCcloudinary !== 'undefined' && base ? DCcloudinary.getImageUrlForKey(base) : '') || (set.file ? `data/${set.file}` : '');
-            return `
-            <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                <div class="relative">
-                    <button onclick="viewDataImage('${src}')" class="w-full text-left">
-                        <img loading="lazy" src="${src}" alt="${set.title}" class="w-full h-44 object-cover">
-                    </button>
-                    ${set._custom ? `
-                    <div class="absolute top-3 right-3 flex gap-2">
-                        <button onclick="event.stopPropagation(); editCustomSet('${set.imageKey}');" class="text-[11px] bg-white/90 text-slate-800 px-2 py-1 rounded-full border border-slate-200 hover:bg-slate-100 transition">Sửa</button>
-                        <button onclick="event.stopPropagation(); if(confirm('Xác nhận xóa bộ huyệt này?')) deleteCustomSet('${set.imageKey}');" class="text-[11px] bg-red-100 text-red-700 px-2 py-1 rounded-full border border-red-200 hover:bg-red-200 transition">Xóa</button>
+        const set = allSets.find(item => getSetKey(item) === key);
+        const panel = document.getElementById('set-detail-panel');
+        const content = document.getElementById('set-detail-content');
+        const listEl = document.getElementById('set-list-container');
+        if (listEl) {
+            listEl.dataset.selected = key || '';
+            Array.from(listEl.querySelectorAll('button')).forEach(btn => {
+                btn.classList.toggle('bg-slate-100', btn.getAttribute('data-key') === key);
+            });
+        }
+        if (!panel || !content || !set) {
+            if (panel) panel.classList.add('hidden');
+            return;
+        }
+        const src = getSetSrc(set);
+        const safeSrc = JSON.stringify(src);
+        const badge = set._custom ? '<span class="text-[11px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full">Tùy chỉnh</span>' : '<span class="text-[11px] bg-slate-100 text-slate-600 px-2 py-1 rounded-full">Mặc định</span>';
+        content.innerHTML = `
+            <div class="space-y-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-lg">${set.title || 'Bộ huyệt'}</h4>
+                        <p class="text-slate-500 text-sm mt-1">${set.description || 'Không có mô tả.'}</p>
                     </div>
-                    ` : ''}
+                    ${badge}
                 </div>
-                <div class="p-4">
-                    <div class="flex items-center justify-between gap-3">
-                        <h4 class="font-bold text-slate-800">${set.title}</h4>
-                        ${set._custom ? '<span class="text-[11px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full">Tùy chỉnh</span>' : ''}
-                    </div>
-                    <p class="text-slate-500 text-xs mt-2">${set.description || ''}</p>
-                    <p class="text-slate-400 text-[11px] mt-2 italic">${set.note || ''}</p>
-                    ${set.imageKey ? `<p class="text-[11px] text-slate-400 mt-3">Public ID: ${set.imageKey}</p>` : ''}
+                <div class="rounded-xl overflow-hidden bg-slate-50 border border-slate-200">
+                    ${src ? `<img loading="lazy" src="${src}" alt="${set.title || 'Bộ huyệt'}" class="w-full max-h-[420px] object-cover">` : '<div class="flex items-center justify-center h-64 text-slate-400">Chưa có ảnh hiển thị.</div>'}
                 </div>
+                <div class="space-y-2 text-sm text-slate-600">
+                    <p><strong>Ghi chú:</strong> ${set.note || 'Không có.'}</p>
+                    ${set.imageKey ? `<p class="text-xs text-slate-500">Public ID: ${set.imageKey}</p>` : ''}
+                </div>
+                ${src ? `<button id="set-view-full-btn" data-src="${src}" class="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">Xem ảnh đầy đủ</button>` : ''}
             </div>
         `;
-        }).join('');
+        const viewBtn = content.querySelector('#set-view-full-btn');
+        if (viewBtn) {
+            viewBtn.addEventListener('click', () => {
+                viewDataImage(viewBtn.dataset.src);
+            });
+        }
+        panel.classList.remove('hidden');
+    }
+
+    function renderSets() {
+        const container = document.getElementById('set-list-container');
+        const search = document.getElementById('set-search')?.value.trim().toLowerCase() || '';
+        const allSets = getSetImageList();
+        const filtered = allSets.filter(set => {
+            const hay = `${set.title || ''} ${set.description || ''} ${set.note || ''}`.toLowerCase();
+            return !search || hay.includes(search) || getSetKey(set).includes(search);
+        });
+        const countEl = document.getElementById('set-count');
+        if (countEl) countEl.textContent = `Hiển thị ${filtered.length} / ${allSets.length} bộ huyệt`;
+        if (!container) return;
+        if (!filtered.length) {
+            container.innerHTML = '<p class="text-center text-slate-400 py-10">Không tìm thấy bộ huyệt phù hợp.</p>';
+            const panel = document.getElementById('set-detail-panel');
+            if (panel) panel.classList.add('hidden');
+            return;
+        }
+        container.innerHTML = `${filtered.map(set => `
+                    <button type="button" data-key="${getSetKey(set)}" onclick="showSetDetail('${getSetKey(set)}')" class="w-full text-left px-4 py-4 border-b border-slate-100 hover:bg-slate-50 transition">
+                        <div class="font-semibold text-slate-900">${set.title || getSetKey(set)}</div>
+                        <div class="text-slate-500 text-sm mt-1">${set.description || 'Không có mô tả.'}</div>
+                        <div class="text-slate-400 text-xs italic mt-1">${set.note || 'Ghi chú chưa có.'}</div>
+                    </button>
+                `).join('')}`;
+        const panel = document.getElementById('set-detail-panel');
+        const content = document.getElementById('set-detail-content');
+        if (panel) panel.classList.add('hidden');
+        if (content) content.innerHTML = '';
+    }
+
+    function renderStoredMissingHuyetNote() {
+        const noteEl = document.getElementById('huyet-missing-storage-note');
+        if (!noteEl) return;
+        const stored = JSON.parse(localStorage.getItem('dc_missing_huyet_ids') || '[]');
+        if (!Array.isArray(stored) || !stored.length) {
+            noteEl.classList.add('hidden');
+            noteEl.innerHTML = '';
+            return;
+        }
+        noteEl.innerHTML = `<strong>Huyệt chưa có hình minh hoạ (từ lần kiểm tra trước):</strong> ${stored.join(', ')}`;
+        noteEl.classList.remove('hidden');
+    }
+
+    function getStoredMissingHuyetIds() {
+        const stored = JSON.parse(localStorage.getItem('dc_missing_huyet_ids') || '[]');
+        return Array.isArray(stored) ? stored : [];
+    }
+
+    function setStoredMissingHuyetIds(ids) {
+        localStorage.setItem('dc_missing_huyet_ids', JSON.stringify(ids));
+    }
+
+    async function checkMissingHuyetImages() {
+        const all = getAllHuyet();
+        const localMissing = all.filter(h => !hasLocalHuyetImage(h));
+        let missingIds = localMissing.map(h => h.id);
+
+        if (typeof DCcloudinary !== 'undefined' && localMissing.length) {
+            const confirmCloud = window.confirm('Kiểm tra thêm Cloudinary có thể tiêu tốn token. Bạn có muốn kiểm tra Cloudinary để loại bỏ các huyệt đã có ảnh trên Cloudinary không?');
+            if (confirmCloud) {
+                const stillMissing = [];
+                for (const h of localMissing) {
+                    try {
+                        const cloudSrc = DCcloudinary.getImageUrlForKey(h.id);
+                        const resolvedCloudSrc = (cloudSrc && typeof cloudSrc.then === 'function') ? await cloudSrc : cloudSrc;
+                        if (!resolvedCloudSrc) {
+                            stillMissing.push(h.id);
+                        }
+                    } catch (err) {
+                        stillMissing.push(h.id);
+                    }
+                }
+                missingIds = stillMissing;
+            }
+        }
+
+        setStoredMissingHuyetIds(missingIds);
+        renderStoredMissingHuyetNote();
+        alert(`Hoàn tất kiểm tra. Có ${missingIds.length} huyệt chưa có hình minh hoạ.`);
     }
 
     function viewDataImage(src) {
@@ -3005,10 +3280,20 @@ window.addEventListener('scroll', () => {
     }
 
     function lookupProtocolByPoints(pts) {
-        if (typeof pts === 'string') pts = pts.split(',');
+        if (typeof pts === 'string') {
+            pts = pts.split(/[,\s]+/).map(p => p.trim()).filter(Boolean);
+        }
+        const orderedIds = [];
+        const seenIds = new Set();
+        pts.forEach(pt => {
+            const id = String(pt).trim();
+            if (!id || seenIds.has(id)) return;
+            seenIds.add(id);
+            orderedIds.push(id);
+        });
         showTab('lookup');
-        document.getElementById('search').value = pts.join(' ');
-        const filtered = database.filter(h => pts.includes(h.id));
+        document.getElementById('search').value = orderedIds.join(' ');
+        const filtered = orderedIds.map(id => database.find(h => String(h.id || '') === id)).filter(Boolean);
         renderHuyet(filtered);
     }
 
@@ -3024,7 +3309,7 @@ window.addEventListener('scroll', () => {
         const activeBn = document.getElementById('bnav-' + tabName);
         if (activeBn) activeBn.classList.add('active-bottom-tab');
         if (tabName === 'sets') {
-            const container = document.getElementById('set-image-list');
+            const container = document.getElementById('set-list-container');
             if (container && container.children.length === 0) {
                 renderSets();
             }
@@ -3159,14 +3444,37 @@ window.addEventListener('scroll', () => {
             || (relativeDataFolderDetected ? `data/${id}.jpg` : '');
     }
 
-    function renderHuyet(data) {
+    function hasLocalHuyetImage(h) {
+        const imgs = JSON.parse(localStorage.getItem('dc_images') || '{}');
+        return folderImageCache.has(h.id)
+            || Boolean(imgs[h.id])
+            || relativeDataFolderImages.has(h.id)
+            || (relativeDataFolderDetected && `data/${h.id}.jpg`);
+    }
+
+    function renderHuyet(data, emptyMessage) {
         const imgs = JSON.parse(localStorage.getItem('dc_images') || '{}');
         const container = document.getElementById('huyet-list');
         const countEl = document.getElementById('huyet-count');
+        const missingNoteEl = document.getElementById('huyet-missing-note');
+        const unique = new Map();
+        data.forEach(h => {
+            const key = String(h.id || '');
+            if (!unique.has(key)) unique.set(key, h);
+        });
+        data = [...unique.values()];
         if (countEl) countEl.textContent = `Hiển thị ${data.length} huyệt`;
         if (data.length === 0) {
-            container.innerHTML = '<p class="text-center text-slate-400 col-span-3 py-10">Không tìm thấy huyệt phù hợp.</p>';
+            const message = emptyMessage || 'Không tìm thấy huyệt phù hợp.';
+            if (missingNoteEl) {
+                missingNoteEl.classList.add('hidden');
+            }
+            container.innerHTML = `<p class="text-center text-slate-400 col-span-3 py-10">${message}</p>`;
             return;
+        }
+        if (missingNoteEl) {
+            missingNoteEl.classList.add('hidden');
+            missingNoteEl.innerHTML = '';
         }
         container.innerHTML = data.map(h => {
             const imgSrc = getHuyetImageSrc(h);
@@ -3204,32 +3512,42 @@ window.addEventListener('scroll', () => {
     function searchHuyet() {
         const raw = document.getElementById('search').value.trim();
         const all = getAllHuyet();
-        if (!raw) { renderHuyet(all); return; }
+        if (!raw) { renderHuyet([], 'Nhập số huyệt hoặc triệu chứng để tra cứu.'); return; }
 
-        // Tách bởi dấu phẩy, dấu cách hoặc cả hai
-        const tokens = raw.split(/[\s,،]+/).map(t => t.toLowerCase()).filter(Boolean);
+        const normalized = raw.replace(/[\u200B-\u200D\uFEFF\u00A0\u202F\u3000]/g, ' ');
+        const tokens = normalized.split(/[\s,،]+/).map(t => t.toLowerCase()).filter(Boolean);
+        const numericListQuery = /^[\d\s,،\u00A0\u202F\u3000]+$/.test(normalized) && tokens.length > 0 && tokens.every(t => /^\d+$/.test(t));
 
-        // Nếu tất cả token đều là số → tìm bộ huyệt (AND: phải khớp tất cả)
-        const allNumbers = tokens.every(t => /^\d+$/.test(t));
-        if (allNumbers && tokens.length > 1) {
-            const filtered = all.filter(h => tokens.includes(h.id.toLowerCase()));
+        if (numericListQuery) {
+            const seenIds = new Set();
+            const filtered = [];
+            tokens.forEach(token => {
+                if (seenIds.has(token)) return;
+                const match = all.find(h => String(h.id || '').toLowerCase() === token);
+                if (match) {
+                    filtered.push(match);
+                    seenIds.add(token);
+                }
+            });
             renderHuyet(filtered);
             return;
         }
 
-        // Tìm từng token (OR): khớp ID, tác dụng hoặc vị trí
-        const filtered = all.filter(h =>
-            tokens.some(t =>
-                h.id.toLowerCase().includes(t) ||
-                h.effect.toLowerCase().includes(t) ||
-                h.pos.toLowerCase().includes(t)
-            )
-        );
+        const filtered = all.filter(h => {
+            const id = String(h.id || '').toLowerCase();
+            const effect = String(h.effect || '').toLowerCase();
+            const pos = String(h.pos || '').toLowerCase();
+            return tokens.some(t =>
+                id.includes(t) ||
+                effect.includes(t) ||
+                pos.includes(t)
+            );
+        });
         renderHuyet(filtered);
     }
 
     async function ensureEncryptedStorageReady() {
-        return typeof DCEncryptedStorage !== 'undefined' && window.dcCurrentUser && window.dcCurrentUser.masterKey;
+        return typeof DCEncryptedStorage !== 'undefined' && !!window.dcCurrentUser && !!window.dcCurrentUser.masterKey;
     }
 
     async function updateUserStatus(message, success = true) {
@@ -3239,6 +3557,49 @@ window.addEventListener('scroll', () => {
         statusEl.className = success ? 'text-sm mt-3 text-emerald-700' : 'text-sm mt-3 text-red-600';
     }
 
+    function updateUnlockBadge(ready) {
+        const badge = document.getElementById('dc-unlock-badge');
+        if (!badge) return;
+        badge.style.display = ready ? 'inline-flex' : 'none';
+    }
+
+    function updateUnlockStateText(ready) {
+        const stateEl = document.getElementById('dc-unlock-state');
+        if (!stateEl) return;
+        stateEl.textContent = ready ? 'Trạng thái khóa: đã mở khóa' : 'Trạng thái khóa: chưa mở khóa';
+        stateEl.className = ready ? 'text-sm mt-1 text-emerald-700' : 'text-sm mt-1 text-orange-600';
+    }
+
+    async function updateBackupUI() {
+        const exportButton = document.getElementById('export-backup-button');
+        const backupMsg = document.getElementById('backup-msg');
+        const debugEl = document.getElementById('dc-debug-status');
+        const ready = await ensureEncryptedStorageReady();
+        if (exportButton) {
+            exportButton.disabled = !ready;
+            exportButton.style.opacity = ready ? '1' : '0.5';
+            exportButton.style.cursor = ready ? 'pointer' : 'not-allowed';
+            exportButton.style.pointerEvents = ready ? 'auto' : 'none';
+        }
+        updateUnlockBadge(ready);
+        updateUnlockStateText(ready);
+        if (debugEl) {
+            debugEl.textContent = `Debug: DCEncryptedStorage=${typeof DCEncryptedStorage !== 'undefined'}, dcCurrentUser=${!!window.dcCurrentUser}, username=${window.dcCurrentUser ? window.dcCurrentUser.username : 'n/a'}, masterKey=${!!(window.dcCurrentUser && window.dcCurrentUser.masterKey)}, ready=${ready}`;
+        }
+        if (backupMsg) {
+            if (!ready) {
+                backupMsg.textContent = '⚠️ Chưa mở khóa user nên backup chỉ xuất backup mã hóa khi mở khóa.';
+                backupMsg.className = 'text-sm mt-3 text-orange-600 font-semibold';
+                backupMsg.classList.remove('hidden');
+            } else {
+                backupMsg.textContent = '✅ Đã mở khóa user. Backup mã hóa đã sẵn sàng.';
+                backupMsg.className = 'text-sm mt-3 text-emerald-700 font-semibold';
+                backupMsg.classList.remove('hidden');
+                setTimeout(() => backupMsg.classList.add('hidden'), 5000);
+            }
+        }
+    }
+
     async function initEncryptedUser() {
         const username = document.getElementById('dc-user-name').value.trim();
         const password = document.getElementById('dc-user-password').value;
@@ -3246,12 +3607,26 @@ window.addEventListener('scroll', () => {
             await updateUserStatus('Vui lòng nhập username và mật khẩu.', false);
             return;
         }
+        if (typeof DCEncryptedStorage === 'undefined') {
+            await updateUserStatus('Lỗi: DCEncryptedStorage chưa được khởi tạo. Vui lòng kiểm tra file storage.js.', false);
+            return;
+        }
         try {
-            await DCEncryptedStorage.loginUser(username, password);
-            await updateUserStatus(`Đã mở khóa user "${username}". Hồ sơ sẽ được lưu mã hóa.`, true);
+            await updateUserStatus(`Đang mở khóa user "${username}"...`, true);
+            const loggedIn = await DCEncryptedStorage.loginUser(username, password);
+            console.debug('[dienchan] loginUser returned', { loggedIn, dcCurrentUser: window.dcCurrentUser });
+            const ready = await ensureEncryptedStorageReady();
+            const masterKeyReady = !!(window.dcCurrentUser && window.dcCurrentUser.masterKey);
+            await updateUserStatus(`Đã mở khóa user "${username}". ready=${ready}, masterKey=${masterKeyReady}`, ready);
+            await updateBackupUI();
             loadPatients();
         } catch (err) {
-            await updateUserStatus(err.message, false);
+            let message = err.message || 'Lỗi không xác định khi mở khóa.';
+            if (err.name === 'OperationError' || err.message === 'OperationError') {
+                message = 'Lỗi giải mã dữ liệu. Có thể tài khoản này được tạo bằng phiên bản cũ không tương thích. Hãy tạo user mới hoặc xóa dữ liệu cũ.';
+            }
+            await updateUserStatus(message, false);
+            console.error('initEncryptedUser error', err);
         }
     }
 
@@ -3264,16 +3639,37 @@ window.addEventListener('scroll', () => {
         }
         try {
             await DCEncryptedStorage.createUser(username, password);
-            await updateUserStatus(`User "${username}" đã tạo. Vui lòng nhấn MỞ KHÓA.`, true);
+            const ready = await ensureEncryptedStorageReady();
+            await updateUserStatus(`User "${username}" đã tạo. Vui lòng nhấn MỞ KHÓA. ready=${ready}`, true);
+            await updateBackupUI();
         } catch (err) {
             await updateUserStatus(err.message, false);
+            console.error('createEncryptedUser error', err);
+        }
+    }
+
+    async function clearEncryptedUsers() {
+        if (!confirm('Bạn có chắc muốn xóa tất cả user mã hóa và dữ liệu hồ sơ mã hóa? Hành động này không thể hoàn tác.')) {
+            return;
+        }
+        try {
+            await DCEncryptedStorage.clearAllUsers();
+            await DCEncryptedStorage.logoutUser();
+            window.dcCurrentUser = null;
+            localStorage.removeItem('dc_active_user');
+            await updateUserStatus('Đã xóa tất cả user mã hóa và dữ liệu hồ sơ mã hóa.', true);
+            await updateBackupUI();
+            await loadPatients();
+        } catch (err) {
+            await updateUserStatus(`Xóa user thất bại: ${err.message || 'Lỗi không xác định'}`, false);
+            console.error('clearEncryptedUsers error', err);
         }
     }
 
     async function savePatient() {
         const name = document.getElementById('p-name').value.trim();
         const disease = document.getElementById('p-disease').value.trim();
-        const protocol = document.getElementById('p-protocol').value.trim();
+        const protocol = document.getElementById('p-protocol-hidden').value.trim();
         if (!name) return;
 
         const record = {
@@ -3295,14 +3691,23 @@ window.addEventListener('scroll', () => {
 
         document.getElementById('p-name').value = '';
         document.getElementById('p-disease').value = '';
-        document.getElementById('p-protocol').value = '';
+        document.getElementById('p-protocol-hidden').value = '';
+        setProtocolInputNames([]);
+
+        const patientSuggestions = document.getElementById('patient-protocol-suggestions');
+        if (patientSuggestions) {
+            patientSuggestions.classList.add('hidden');
+        }
+
         loadPatients();
     }
 
     async function loadPatients() {
         const container = document.getElementById('patient-records');
+        const statusEl = document.getElementById('patient-storage-status');
         let records = [];
-        if (await ensureEncryptedStorageReady()) {
+        const encryptedReady = await ensureEncryptedStorageReady();
+        if (encryptedReady) {
             try {
                 records = await DCEncryptedStorage.loadRecords();
             } catch (err) {
@@ -3312,6 +3717,14 @@ window.addEventListener('scroll', () => {
         if (!records.length) {
             records = JSON.parse(localStorage.getItem('dc_records') || "[]");
         }
+        if (statusEl) {
+            statusEl.textContent = encryptedReady
+                ? 'Hồ sơ đang được giải mã từ kho lưu trữ mã hóa.'
+                : 'Hồ sơ đang được lưu trực tiếp vào localStorage (chưa mở khóa hoặc chưa có user).';
+            statusEl.className = encryptedReady ? 'text-sm text-emerald-700 mb-4' : 'text-sm text-orange-600 mb-4';
+        }
+        updateBackupUI();
+        updateBackupUI();
 
         if (records.length === 0) {
             container.innerHTML = '<p class="text-center text-slate-400 py-8">Chưa có hồ sơ nào.</p>';
@@ -3323,7 +3736,7 @@ window.addEventListener('scroll', () => {
                     <div class="flex-1 min-w-0">
                         <h4 class="font-bold text-lg">${r.name} <span class="text-xs font-normal text-slate-400">(${r.date})</span></h4>
                         <p class="text-sm mt-1">Bệnh trạng: <span class="text-red-500">${r.disease || '<em class="text-slate-300">chưa ghi</em>'}</span></p>
-                        <p class="text-sm font-semibold">Phác đồ: ${r.protocol || '<em class="text-slate-300">chưa ghi</em>'}</p>
+                        <p class="text-sm font-semibold">Phác đồ: ${renderPatientProtocolLinks(r.protocol)}</p>
                         ${r.note ? `<p class="text-sm text-slate-500 mt-1 italic">📝 ${r.note}</p>` : ''}
                     </div>
                     <div class="flex gap-2 ml-3 shrink-0">
@@ -3407,56 +3820,42 @@ window.addEventListener('scroll', () => {
     }
 
     async function exportBackup() {
-        if (await ensureEncryptedStorageReady()) {
-            try {
-                const backup = await DCEncryptedStorage.exportBackup();
-                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                const date = new Date().toISOString().slice(0,10);
-                a.href = url;
-                a.download = `dienchan-encrypted-backup-${date}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-                return;
-            } catch (err) {
-                console.warn('Xuất backup mã hóa lỗi:', err);
+        const backupMsg = document.getElementById('backup-msg');
+        if (!await ensureEncryptedStorageReady()) {
+            if (backupMsg) {
+                backupMsg.textContent = '⚠️ Chưa mở khóa user, nên không thể xuất backup plain. Vui lòng mở khóa để xuất backup mã hóa.';
+                backupMsg.className = 'text-sm mt-3 text-red-600 font-semibold';
+                backupMsg.classList.remove('hidden');
             }
+            return;
         }
 
-        // Fallback backup cũ nếu chưa đăng nhập user mã hóa
-        const folderImgsB64 = {};
-        const dir = await getDataDirHandle();
-        if (dir) {
-            const toB64 = f => new Promise(res => {
-                const r = new FileReader();
-                r.onload = e => res(e.target.result);
-                r.readAsDataURL(f);
-            });
-            try {
-                for await (const [name, entry] of dir.entries()) {
-                    if (entry.kind !== 'file') continue;
-                    const m = name.match(/^(\w+)\.(jpe?g|png|webp|gif)$/i);
-                    if (m) folderImgsB64[m[1]] = await toB64(await entry.getFile());
-                }
-            } catch(e) { console.warn(e); }
+        try {
+            const backup = await DCEncryptedStorage.exportBackup();
+            backup.dc_custom_huyet = JSON.parse(localStorage.getItem('dc_custom_huyet') || '[]');
+            backup.dc_custom_protocols = JSON.parse(localStorage.getItem('dc_custom_protocols') || '[]');
+            backup.dc_custom_sets = JSON.parse(localStorage.getItem('dc_custom_sets') || '[]');
+            backup.dc_images = JSON.parse(localStorage.getItem('dc_images') || '{}');
+            backup.dc_records = JSON.parse(localStorage.getItem('dc_records') || '[]');
+
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const date = new Date().toISOString().slice(0,10);
+            a.href = url;
+            a.download = `dienchan-encrypted-backup-${date}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            return;
+        } catch (err) {
+            console.warn('Xuất backup mã hóa lỗi:', err);
+            if (backupMsg) {
+                backupMsg.textContent = `❌ Xuất backup mã hóa thất bại: ${err.message || 'Lỗi không xác định'}`;
+                backupMsg.className = 'text-sm mt-3 text-red-600 font-semibold';
+                backupMsg.classList.remove('hidden');
+            }
+            return;
         }
-        const backup = {
-            version: 2,
-            exportedAt: new Date().toLocaleString('vi-VN'),
-            dc_custom_huyet:     JSON.parse(localStorage.getItem('dc_custom_huyet')     || '[]'),
-            dc_custom_protocols: JSON.parse(localStorage.getItem('dc_custom_protocols') || '[]'),
-            dc_records:          JSON.parse(localStorage.getItem('dc_records')          || '[]'),
-            dc_images:           { ...JSON.parse(localStorage.getItem('dc_images') || '{}'), ...folderImgsB64 }
-        };
-        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        const date = new Date().toISOString().slice(0,10);
-        a.href     = url;
-        a.download = `dienchan-backup-${date}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
     }
 
     async function importBackup(event) {
@@ -3504,6 +3903,14 @@ window.addEventListener('scroll', () => {
                     const existNames = new Set(current.map(p => p.name));
                     const merged     = [...current, ...data.dc_custom_protocols.filter(p => !existNames.has(p.name))];
                     localStorage.setItem('dc_custom_protocols', JSON.stringify(merged));
+                }
+
+                // Gộp bộ huyệt tùy chỉnh (tránh trùng imageKey)
+                if (Array.isArray(data.dc_custom_sets) && data.dc_custom_sets.length) {
+                    const current    = JSON.parse(localStorage.getItem('dc_custom_sets') || '[]');
+                    const existKeys  = new Set(current.map(s => s.imageKey));
+                    const merged     = [...current, ...data.dc_custom_sets.filter(s => !existKeys.has(s.imageKey))];
+                    localStorage.setItem('dc_custom_sets', JSON.stringify(merged));
                 }
 
                 // Gộp ảnh huyệt (backup ghi đè nếu đã có)
@@ -3651,8 +4058,10 @@ window.addEventListener('scroll', () => {
         await refreshFolderImageCache();
         await checkRelativeDataFolder();
         checkFolderStatus();
+        renderStoredMissingHuyetNote();
         searchHuyet();
-        loadPatients();
+        await loadPatients();
+        await updateBackupUI();
         buildProtoJumpNav();
         renderProtocols(getAllProtocols());
         renderSets();
@@ -3684,6 +4093,7 @@ window.addEventListener('scroll', () => {
     function buildProtoJumpNav() {
         const nav = document.getElementById('proto-jump-nav');
         if (!nav) return;
+        nav.innerHTML = '<span class="text-xs text-slate-400 self-center font-semibold mr-1">Nhảy đến:</span>';
         protoGroups.forEach(g => {
             const btn = document.createElement('button');
             btn.textContent = g.label;
@@ -3831,8 +4241,6 @@ window.addEventListener('scroll', () => {
         icon.textContent = isHidden ? '▲' : '▼';
         if (isHidden) setTimeout(renderFaceMap, 50);
     }
-
-    buildProtoJumpNav();
 </script>
 <script src="crypto.js"></script>
 <script src="storage.js"></script>

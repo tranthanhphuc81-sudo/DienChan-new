@@ -73,6 +73,7 @@
     }
 
     async function createUser(username, password) {
+        console.debug('[DCEncryptedStorage] createUser start', { username });
         if (!username || !password) throw new Error('Username và password yêu cầu');
         if (await getUser(username)) throw new Error('Username đã tồn tại');
 
@@ -81,7 +82,7 @@
         const derivedKey = await DCCrypto.deriveKey(password, salt);
         const masterKeyRaw = DCCrypto.randomBytes(32);
         const masterKey = await crypto.subtle.importKey('raw', masterKeyRaw, 'AES-GCM', true, ['encrypt','decrypt']);
-        const encryptedKey = await DCCrypto.encryptJSON(masterKey, DCCrypto.toBase64(masterKeyRaw));
+        const encryptedKey = await DCCrypto.encryptJSON(derivedKey, DCCrypto.toBase64(masterKeyRaw));
 
         const user = {
             username,
@@ -91,18 +92,36 @@
             createdAt: new Date().toISOString()
         };
         await putUser(user);
+        console.debug('[DCEncryptedStorage] createUser done', { username }, user);
         return user;
     }
 
     async function loginUser(username, password) {
+        console.debug('[DCEncryptedStorage] loginUser start', { username });
         const user = await getUser(username);
-        if (!user) throw new Error('Người dùng không tồn tại');
+        if (!user) {
+            console.debug('[DCEncryptedStorage] loginUser fail user-not-found', { username });
+            throw new Error('Người dùng không tồn tại');
+        }
         const passwordHash = await DCCrypto.hashPassword(password);
-        if (user.passwordHash !== passwordHash) throw new Error('Sai mật khẩu');
+        if (user.passwordHash !== passwordHash) {
+            console.debug('[DCEncryptedStorage] loginUser fail wrong-password', { username });
+            throw new Error('Sai mật khẩu');
+        }
 
         const salt = DCCrypto.fromBase64(user.salt);
+        console.debug('[DCEncryptedStorage] loginUser saltBytes', { username, saltBase64: user.salt, saltBytes: Array.from(new Uint8Array(salt)) });
         const derivedKey = await DCCrypto.deriveKey(password, salt);
+        console.debug('[DCEncryptedStorage] loginUser derivedKey ready', { username, keyType: derivedKey.type, keyAlgorithm: derivedKey.algorithm.name, usages: derivedKey.usages });
+        console.debug('[DCEncryptedStorage] loginUser encryptedKey fields', {
+            username,
+            iv: user.encryptedKey?.iv,
+            ciphertext: user.encryptedKey?.ciphertext,
+            ivLength: user.encryptedKey?.iv?.length,
+            ciphertextLength: user.encryptedKey?.ciphertext?.length
+        });
         const masterKeyRaw = await DCCrypto.decryptJSON(derivedKey, user.encryptedKey);
+        console.debug('[DCEncryptedStorage] loginUser decrypted masterKeyRaw', { username, masterKeyRaw });
         const masterKey = await crypto.subtle.importKey(
             'raw',
             DCCrypto.fromBase64(masterKeyRaw),
@@ -116,6 +135,7 @@
             masterKey
         };
         global.localStorage.setItem('dc_active_user', username);
+        console.debug('[DCEncryptedStorage] loginUser success', { username, dcCurrentUser: global.dcCurrentUser });
         return global.dcCurrentUser;
     }
 
@@ -187,6 +207,17 @@
         return true;
     }
 
+    async function clearAllUsers() {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction([USER_STORE, RECORD_STORE], 'readwrite');
+            tx.objectStore(USER_STORE).clear();
+            tx.objectStore(RECORD_STORE).clear();
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => reject(tx.error || new Error('Xóa user thất bại'));
+        });
+    }
+
     global.DCEncryptedStorage = {
         createUser,
         loginUser,
@@ -195,6 +226,7 @@
         loadRecords,
         deleteRecord,
         exportBackup,
-        importBackup
+        importBackup,
+        clearAllUsers
     };
 })(window);

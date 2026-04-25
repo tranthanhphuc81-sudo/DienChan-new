@@ -24,10 +24,16 @@
             ['deriveKey']
         );
 
+        const saltBytes = salt instanceof Uint8Array
+            ? salt
+            : salt instanceof ArrayBuffer
+                ? new Uint8Array(salt)
+                : encoder.encode(salt);
+
         return crypto.subtle.deriveKey(
             {
                 name: 'PBKDF2',
-                salt: salt instanceof Uint8Array ? salt : encoder.encode(salt),
+                salt: saltBytes,
                 iterations,
                 hash: 'SHA-256'
             },
@@ -56,16 +62,28 @@
 
     async function decryptJSON(key, data) {
         const iv = new Uint8Array(fromBase64(data.iv));
-        const decrypted = await crypto.subtle.decrypt(
-            { name: 'AES-GCM', iv },
-            key,
-            fromBase64(data.ciphertext)
-        );
-        const text = decoder.decode(decrypted);
+        console.debug('[DCCrypto] decryptJSON', {
+            ivType: typeof data.iv,
+            ivLength: data.iv?.length,
+            ivBytes: Array.from(iv),
+            ciphertextType: typeof data.ciphertext,
+            ciphertextLength: data.ciphertext?.length
+        });
         try {
-            return JSON.parse(text);
-        } catch {
-            return text;
+            const decrypted = await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv },
+                key,
+                fromBase64(data.ciphertext)
+            );
+            const text = decoder.decode(decrypted);
+            try {
+                return JSON.parse(text);
+            } catch {
+                return text;
+            }
+        } catch (err) {
+            console.error('[DCCrypto] decryptJSON failed', err, { data });
+            throw err;
         }
     }
 
