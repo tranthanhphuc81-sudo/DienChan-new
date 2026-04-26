@@ -2614,7 +2614,7 @@ window.addEventListener('scroll', () => {
         renderProtocols(getAllProtocols());
     }
 
-    const PROTOCOL_RENDER_BATCH = 20;
+    const PROTOCOL_RENDER_BATCH = 10;
     let protocolRenderState = {
         protocols: [],
         renderedIndex: 0
@@ -2650,17 +2650,7 @@ window.addEventListener('scroll', () => {
                     </div>
                     <span id="proto-arrow-${i}" class="text-slate-400 text-lg transition-transform">▼</span>
                 </button>
-                <div id="proto-detail-${i}" class="hidden px-5 py-4 bg-white border-t">
-                    <p class="text-sm text-slate-600 mb-3"><strong>📝 Cách thực hiện:</strong> ${p.note}</p>
-                    <div class="flex flex-wrap gap-2">
-                        ${p.points.map(pt => {
-                            const h = getHuyetById(pt);
-                            return h ? `<div class="bg-slate-50 border rounded-lg p-2 text-xs flex-1 min-w-[140px]"><span class="font-bold text-red-500">#${h.id}</span> <span class="text-slate-500">${h.pos}</span></div>` : '';
-                        }).join('')}
-                    </div>
-                    <button onclick="lookupProtocolByPoints('${p.points.join(',')}')" class="mt-3 text-xs bg-blue-500 text-white px-3 py-1.5 rounded-lg hover:bg-blue-600 transition">🔍 Tra chi tiết tất cả huyệt</button>
-                    ${p._custom ? `<button onclick="deleteCustomProtocol(this.dataset.name)" data-name="${p.name.replace(/"/g,'&quot;')}" class="mt-3 ml-2 text-xs bg-red-100 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-200 transition">🗑️ Xóa phác đồ này</button>` : ''}
-                </div>
+                <div id="proto-detail-${i}" class="hidden px-5 py-4 bg-white border-t" data-protocol-index="${i}"></div>
             </div>
         `;
         }).join('');
@@ -2752,9 +2742,31 @@ window.addEventListener('scroll', () => {
     function toggleProtocol(i) {
         const detail = document.getElementById('proto-detail-' + i);
         const arrow = document.getElementById('proto-arrow-' + i);
+        if (!detail || !arrow) return;
         const isHidden = detail.classList.contains('hidden');
+        if (isHidden && !detail.dataset.rendered) {
+            buildProtocolDetail(i, detail);
+        }
         detail.classList.toggle('hidden', !isHidden);
         arrow.style.transform = isHidden ? 'rotate(180deg)' : '';
+    }
+
+    function buildProtocolDetail(i, detailEl) {
+        const item = protocolRenderState.protocols[i];
+        if (!item) return;
+        const pointsHtml = item.points.map(pt => {
+            const h = getHuyetById(pt);
+            return h ? `<div class="bg-slate-50 border rounded-lg p-2 text-xs flex-1 min-w-[140px]"><span class="font-bold text-red-500">#${h.id}</span> <span class="text-slate-500">${h.pos}</span></div>` : '';
+        }).join('');
+        detailEl.innerHTML = `
+            <p class="text-sm text-slate-600 mb-3"><strong>📝 Cách thực hiện:</strong> ${item.note}</p>
+            <div class="flex flex-wrap gap-2">
+                ${pointsHtml}
+            </div>
+            <button onclick="lookupProtocolByPoints('${item.points.join(',')}')" class="mt-3 text-xs bg-blue-500 text-white px-3 py-1.5 rounded-lg hover:bg-blue-600 transition">🔍 Tra chi tiết tất cả huyệt</button>
+            ${item._custom ? `<button onclick="deleteCustomProtocol(this.dataset.name)" data-name="${item.name.replace(/"/g,'&quot;')}" class="mt-3 ml-2 text-xs bg-red-100 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-200 transition">🗑️ Xóa phác đồ này</button>` : ''}
+        `;
+        detailEl.dataset.rendered = 'true';
     }
 
     function renderSuggestedSets(sets, containerId = 'patient-set-suggestion-list') {
